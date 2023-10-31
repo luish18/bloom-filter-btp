@@ -102,7 +102,7 @@ class LGBPHS:
         features = self.extract_blocks(features)
 
 
-        return np.array(features)
+        return features
 
 
 
@@ -155,6 +155,9 @@ def hamming_distance(X, Y):
     """Computes the noralised Hamming distance between two Bloom filter templates"""
     dist = 0
 
+    X = np.array(X, dtype=int)
+    Y = np.array(Y, dtype=int)
+
     N_BLOCKS = X.shape[0]
     for i in range(N_BLOCKS):
         A = X[i, :]
@@ -169,11 +172,10 @@ def hamming_distance(X, Y):
 
 def gen_bf_from_face(feat):
     '''Extracts BF protected template from an unprotected template'''
-    template = np.zeros(shape=[N_BLOCKS * N_BF_X * N_BF_Y, BF_SIZE], dtype=int)
+    template = []
 
     index = 0
-    for i in range(N_BLOCKS):
-        block = feat[i, :, :]
+    for block in feat:
 
         #change to int
         block = np.array(block, dtype=int)
@@ -181,18 +183,15 @@ def gen_bf_from_face(feat):
         # binarize
         block = np.where(block > 0, 1, 0)
 
-
-
         bf = np.zeros(shape=[BF_SIZE])
 
 
-        for k in range(N_WORDS_BF):
+        for k in range(block.shape[1]):
             hist = block[:, k]
             location = int("0b" + ''.join([str(a) for a in hist]), 2)
             bf[location] = int(1)
 
-        template[index] = bf
-        index += 1
+        template.append(bf)
 
     return template
 
@@ -220,11 +219,11 @@ def register_user():
     # extract face features
     print("Extracting face features...")
     face = LGBPHS((N_BITS_BF, N_WORDS_BF), (0,0))(img)
-    ic(face.shape)
 
     # generate user bloom filter
     print("Generating user BF...")
-    bf = gen_bf_from_face(face)
+    bf = np.array(gen_bf_from_face(face))
+    
 
     # save user bloom filter
     print("Saving user BF...")
@@ -235,7 +234,6 @@ def register_user():
 
 def check_user_in_db(threshold: float) -> bool:
     # get user name
-    username = input("Enter your name: ")
 
     # get user face
     print("Please, look at the camera...")
