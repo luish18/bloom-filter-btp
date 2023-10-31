@@ -1,9 +1,15 @@
 import cv2 as cv
+import numpy as np
 
+def show_img(img: cv.Mat) -> None:
+
+    cv.imshow("Capture", img)
+    cv.waitKey(0)
+    cv.destroyAllWindows()
 
 def capture_image(
-    exit_key: str = "q", capture_key: str = "c", save_dir: str = "../../data/"
-) -> cv.Mat | None:
+    exit_key: str = "q", capture_key: str = "c"
+) -> cv.Mat:
     cap = cv.VideoCapture(0)
 
     # Check if the webcam is opened correctly
@@ -27,5 +33,8 @@ def capture_image(
 
     cap.release()
     cv.destroyAllWindows()
+
+    result = cv.cvtColor(result, cv.COLOR_BGR2GRAY)
+    
 
     return result
