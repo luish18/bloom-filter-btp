@@ -7,34 +7,32 @@ from cv2.data import haarcascades as haarcascades
 
 
 def divide_into_blocks(
-    matrix: npt.NDArray[np.uint8] | cv.Mat, N_words: int, N_bits: int
+    matrix: npt.NDArray[np.uint8] | cv.Mat, num_blocks: int
 ) -> list[npt.NDArray[np.uint8]]:
     """
     Divide a matrix into blocks with specified dimensions.
 
     Parameters:
     - matrix (numpy.ndarray): The 2D input matrix (feature matrix).
-    - N_words (int): The number of columns in each block.
-    - N_bits (int): The number of rows in each block.
 
     Returns:
     - blocks (list of numpy.ndarray): A list containing the blocks.
     """
-    flattened = matrix.flatten()
 
-    total_blocks = len(flattened) // (N_words * N_bits)
+    height, width = matrix.shape
 
-    if len(flattened) % (N_words * N_bits) != 0:
-        raise ValueError(
-            "Matrix cannot be evenly divided into the specified block size."
-        )
+    block_height = height // num_blocks
+    block_width = width // num_blocks
 
-    blocks = [
-        flattened[i * N_words * N_bits : (i + 1) * N_words * N_bits].reshape(
-            N_bits, N_words
-        )
-        for i in range(total_blocks)
-    ]
+    blocks = []
+
+    for i in range(num_blocks):
+        for j in range(num_blocks):
+            block = matrix[
+                i * block_height : (i + 1) * block_height,
+                j * block_width : (j + 1) * block_width,
+            ]
+            blocks.append(block)
 
     return blocks
 
@@ -82,7 +80,10 @@ def show_img(img: cv.Mat) -> None:
 
 
 def extract_face(
-    img: cv.Mat, scale_factor: float = 1.5, min_neighbors: int = 5
+    img: cv.Mat | npt.NDArray,
+    scale_factor: float = 1.5,
+    min_neighbors: int = 5,
+    final_size: tuple[int, int] = (480, 640),
 ) -> Optional[npt.NDArray[np.uint8]]:
     """
     Extracts the face from the image using opencv's haarcascade classifier.
@@ -108,8 +109,11 @@ def extract_face(
         return None
 
     x, y, w, h = faces[0]
+    img = img[y : y + h, x : x + w]
 
-    return img[y : y + h, x : x + w]
+    img = cv.resize(img, final_size)
+
+    return img
 
 
 def capture_image(exit_key: str = "q", capture_key: str = "c") -> cv.Mat:
@@ -140,3 +144,47 @@ def capture_image(exit_key: str = "q", capture_key: str = "c") -> cv.Mat:
     result = cv.cvtColor(result, cv.COLOR_BGR2GRAY)
 
     return result
+
+
+def capture_and_extract_face(
+    exit_key: str = "q",
+    capture_key: str = "c",
+    scale_factor: float = 1.5,
+    min_neighbors: int = 5,
+    final_size: tuple[int, int] = (480, 640),
+    cap: Optional[cv.VideoCapture] = None,
+) -> tuple[Optional[npt.NDArray[np.uint8]], Optional[npt.NDArray[np.uint8]]]:
+    if cap is None:
+        cap = cv.VideoCapture(0)
+        if not cap.isOpened():
+            raise IOError("Cannot open webcam")
+
+    face_cascade = cv.CascadeClassifier(
+        cv.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
+
+    result = None
+
+    ret, frame = cap.read()
+    if not ret:
+        return None, None
+
+    gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+    faces = face_cascade.detectMultiScale(
+        gray, scaleFactor=scale_factor, minNeighbors=min_neighbors
+    )
+
+    if len(faces) == 0 or len(faces) > 1:
+        return None, frame.astype(np.uint8)
+
+    for x, y, w, h in faces:
+        cv.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+
+    x, y, w, h = faces[0]
+    result = gray[y : y + h, x : x + w]
+    result = cv.resize(result, final_size)
+
+    if result is None:
+        return None, frame.astype(np.uint8)
+
+    return result.astype(np.uint8), frame.astype(np.uint8)

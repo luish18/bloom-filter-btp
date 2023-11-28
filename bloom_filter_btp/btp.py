@@ -1,5 +1,42 @@
+import json
+import os
+
+import cv2 as cv
 import numpy as np
 import numpy.typing as npt
+
+from bloom_filter_btp.img_processing import (
+    apply_gabor_filter,
+    capture_and_extract_face,
+    divide_into_blocks,
+    extract_face,
+)
+
+N_GROUPS = 20
+N_BLOCKS = 80
+MIN_NEIGHBORS = 5
+
+SCALE_FACTOR = 1.1
+IMG_SHAPE = (300, 300)
+
+TEMPLATE_PATH = "data/templates/user_templates.json"
+
+
+def compare_bloom_filters(bf1: npt.NDArray, bf2: npt.NDArray) -> int:
+    """
+    Compare two bloom filters using Hamming distance.
+
+    Parameters:
+    bf1 (list or array-like): The first bloom filter.
+    bf2 (list or array-like): The second bloom filter.
+
+    Returns:
+    int: The Hamming distance between the two bloom filters.
+    """
+    if len(bf1) != len(bf2):
+        raise ValueError("Bloom filters must be of the same length")
+
+    return np.count_nonzero(bf1 != bf2)
 
 
 def structure_preserving_rearrangement(
@@ -47,7 +84,7 @@ def structure_preserving_rearrangement(
     return rearranged_blocks
 
 
-def compute_bloom_filters(blocks: list[npt.NDArray], nBits: int) -> npt.NDArray:
+def compute_bloom_filters(blocks: list[npt.NDArray]) -> npt.NDArray:
     """
     Compute Bloom filters from the given blocks, with each filter having a size of 2^nBits.
 
@@ -60,8 +97,13 @@ def compute_bloom_filters(blocks: list[npt.NDArray], nBits: int) -> npt.NDArray:
     """
 
     nBlocks = len(blocks)
+    nBits = blocks[0].shape[0]
     bloom_filter_size = 2**nBits
     bloom_filters = np.zeros((nBlocks, bloom_filter_size), dtype=int)
+
+    # binarize blocks
+    for block in blocks:
+        block[block > 0] = 1
 
     for i, block in enumerate(blocks):
         for col in range(block.shape[1]):
@@ -72,3 +114,139 @@ def compute_bloom_filters(blocks: list[npt.NDArray], nBits: int) -> npt.NDArray:
             bloom_filters[i, decimal_value % bloom_filter_size] = 1
 
     return bloom_filters
+
+
+def gen_template(face: npt.NDArray[np.uint8] | cv.Mat) -> npt.NDArray[np.uint8]:
+    features = apply_gabor_filter(face)
+    blocks = divide_into_blocks(features, N_BLOCKS)
+    blocks = structure_preserving_rearrangement(blocks, N_GROUPS)
+    template = compute_bloom_filters(blocks)
+
+    return template
+
+
+def save_user_template(
+    username: str, template: npt.NDArray, template_path: str = TEMPLATE_PATH
+) -> None:
+    try:
+        with open(template_path, "r") as file:
+            templates = json.load(file)
+    except FileNotFoundError:
+        templates = {}
+
+    templates[username] = template.tolist()
+
+    with open(template_path, "w") as file:
+        json.dump(templates, file)
+
+
+def load_user_templates() -> dict:
+    try:
+        with open("user_templates.json", "r") as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return {}
+
+
+def register_user() -> None:
+    username = input("Enter your name: ")
+    print("Please, look at the camera...")
+
+    face = None
+    while face is None:
+        face, _ = capture_and_extract_face(
+            scale_factor=SCALE_FACTOR, final_size=IMG_SHAPE, min_neighbors=MIN_NEIGHBORS
+        )
+        if face is None:
+            print("No face detected. Please try again.")
+
+    print("Extracting face features...")
+    template = gen_template(face)
+
+    print("Saving user template...")
+    save_user_template(username, template)
+
+    print("User registered successfully!")
+
+
+def check_user_in_db() -> None:
+    print("Please, look at the camera...")
+
+    if not os.path.exists(TEMPLATE_PATH):
+        print("No user templates found. Please register first.")
+        return
+
+    face = None
+    while face is None:
+        face, _ = capture_and_extract_face(
+            scale_factor=SCALE_FACTOR, final_size=IMG_SHAPE, min_neighbors=MIN_NEIGHBORS
+        )
+
+        if face is None:
+            print("No face detected. Please try again.")
+
+    print("Extracting face features...")
+    new_template = gen_template(face)
+
+    print("Loading all user templates...")
+    templates = load_user_templates()
+
+    print("Checking if user is in the database...")
+    for username, template in templates.items():
+        # Compare the new template with each stored template.
+        # Replace this with your actual implementation.
+        distance = compare_bloom_filters(new_template, template)
+        print(f"User found: {username} with distance: {distance}")
+
+
+def find_img_file(path: str) -> None:
+    print("Extracting face features...")
+
+    img = cv.imread(path, cv.IMREAD_GRAYSCALE)
+
+    face = extract_face(
+        img,
+        final_size=IMG_SHAPE,
+        scale_factor=SCALE_FACTOR,
+        min_neighbors=MIN_NEIGHBORS,
+    )
+
+    if face is None:
+        print("No face detected in image")
+        return
+
+    new_template = gen_template(face)
+
+    print("Loading all user templates...")
+    templates = load_user_templates()
+
+    print("Checking if user is in the database...")
+    for username, template in templates.items():
+        # Compare the new template with each stored template.
+        # Replace this with your actual implementation.
+        distance = compare_bloom_filters(new_template, template)
+        print(f"User found: {username} with distance: {distance}")
+
+
+def register_image_file(path: str) -> None:
+    print("Extracting face features...")
+
+    img = cv.imread(path, cv.IMREAD_GRAYSCALE)
+
+    face = extract_face(
+        img,
+        final_size=IMG_SHAPE,
+        scale_factor=SCALE_FACTOR,
+        min_neighbors=MIN_NEIGHBORS,
+    )
+
+    if face is None:
+        print("No face detected in image")
+        return
+
+    new_template = gen_template(face)
+
+    print("Saving user template...")
+    save_user_template(path, new_template)
+
+    print("User registered successfully!")
