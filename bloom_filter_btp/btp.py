@@ -12,7 +12,7 @@ from bloom_filter_btp.img_processing import (
     extract_face,
 )
 
-N_GROUPS = 20
+N_GROUPS = 10
 N_BLOCKS = 80
 MIN_NEIGHBORS = 5
 
@@ -128,6 +128,21 @@ def gen_template(face: npt.NDArray[np.uint8] | cv.Mat) -> npt.NDArray[np.uint8]:
 def save_user_template(
     username: str, template: npt.NDArray, template_path: str = TEMPLATE_PATH
 ) -> None:
+    """
+    Save the user template to a file.
+
+    This function takes a username, a template, and an optional template path as input.
+    It saves the user template to the specified template path in JSON format.
+
+    Parameters
+    ----------
+    username : str
+        The username of the user.
+    template : npt.NDArray
+        The template to be saved.
+    template_path : str, optional
+        The path where the template will be saved, by default TEMPLATE_PATH.
+    """
     try:
         with open(template_path, "r") as file:
             templates = json.load(file)
@@ -141,6 +156,12 @@ def save_user_template(
 
 
 def load_user_templates() -> dict:
+    """
+    Load user templates from a JSON file.
+
+    Returns:
+        dict: A dictionary containing the loaded user templates.
+    """
     try:
         with open("user_templates.json", "r") as file:
             return json.load(file)
@@ -149,6 +170,13 @@ def load_user_templates() -> dict:
 
 
 def register_user() -> None:
+    """
+    Registers a user by capturing their face, extracting face features,
+    and saving the user template.
+
+    Returns:
+        None
+    """
     username = input("Enter your name: ")
     print("Please, look at the camera...")
 
@@ -170,6 +198,19 @@ def register_user() -> None:
 
 
 def check_user_in_db() -> None:
+    """
+    Checks if a user is in the database by comparing their face template with stored templates.
+
+    This function prompts the user to look at the camera and captures their face. It then extracts
+    the face features and compares them with the stored templates of registered users. The function
+    prints the username and the distance between the new template and each stored template.
+
+    If no user templates are found, it prints a message asking the user to register first. If no
+    face is detected during the capture process, it prints a message asking the user to try again.
+
+    Returns:
+        None
+    """
     print("Please, look at the camera...")
 
     if not os.path.exists(TEMPLATE_PATH):
@@ -200,6 +241,15 @@ def check_user_in_db() -> None:
 
 
 def find_img_file(path: str) -> None:
+    """
+    Finds the face in an image file and compares it with stored templates in the database.
+
+    Args:
+        path (str): The path to the image file.
+
+    Returns:
+        None
+    """
     print("Extracting face features...")
 
     img = cv.imread(path, cv.IMREAD_GRAYSCALE)
@@ -229,6 +279,15 @@ def find_img_file(path: str) -> None:
 
 
 def register_image_file(path: str) -> None:
+    """
+    Register an image file by extracting face features, generating a template, and saving it.
+
+    Args:
+        path (str): The path to the image file.
+
+    Returns:
+        None
+    """
     print("Extracting face features...")
 
     img = cv.imread(path, cv.IMREAD_GRAYSCALE)
