@@ -4,7 +4,7 @@
 
 Clone this repo on your local machine
 
-    git clone  ...
+    git clone https://github.com/luish18/bloom-filter-btp.git
 
 While inside the repo on your terminal, install dependencies:
 
